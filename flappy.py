@@ -38,7 +38,8 @@ class Ptic:
     def premik(self):
         self.tick_count += 1
 
-        d = self.hitrost * self.tick_count + 1.5 * self.tick_count ** 2    # displacement - fizika, ki pove kam gre ptič
+        # displacement - fizika, ki pove kam gre ptič
+        d = self.hitrost * self.tick_count + 1.5 * self.tick_count ** 2
         if d >= 16:    # to je terminal velocity
             d = 16
         if d < 0:
@@ -78,6 +79,7 @@ class Ptic:
         nova_sredina = rotirna_slika.get_rect(center=self.slika.get_rect(topleft = (self.x, self.y)).center)
         okno.blit(rotirna_slika, nova_sredina.topleft)
 
+    # za trčenja
     def dobi_masko(self):
         return pygame.mask.from_surface(self.slika)
         
@@ -102,6 +104,29 @@ class Cev:
         self.visina = random.randrange(50, 450)
         self.vrh = self.visina - self.CEV_VRH.pridobi_visino()
         self.dno = self.visina + self.RAZMIK
+
+    def premik(self):
+        self.x -= self.HITROST
+
+    def narisi(self, okno):
+        okno.blit(self.CEV_VRH, (self.x, self.vrh))
+        okno.blit(self.CEV_DNO, (self.x, self.dno))
+
+    def trci(self, ptic):
+        ptic_maska = ptic.dobi_masko()  
+        vrh_maska = pygame.mask.from_surface(self.CEV_VRH)  
+        dno_maska = pygame.mask.from_surface(self.CEV_DNO)
+
+        vrh_odmik = (self.x - ptic.x, self.vrh - round(ptic.y))
+        dno_odmik = (self.x - ptic.x, self.dno - round(ptic.y))
+
+        dno_tocka = ptic_maska.overlap(dno_maska, dno_odmik)
+        vrh_tocka = ptic_maska.overlap(vrh_maska, vrh_odmik)
+
+        if vrh_tocka or dno_tocka:
+            return True
+        
+        return False
 
 
 def narisi_okno(okno, ptic):
