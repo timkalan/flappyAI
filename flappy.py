@@ -3,6 +3,7 @@ import neat
 import time
 import os
 import random
+pygame.font.init()
 
 SIRINA = 500    # naše igralno okno
 VISINA = 800
@@ -13,6 +14,7 @@ PTIC_SLIKE = [pygame.transform.scale2x(pygame.image.load(os.path.join("slike", "
 CEV_SLIKA = pygame.transform.scale2x(pygame.image.load(os.path.join("slike", "pipe.png")))
 OZADJE_SLIKA = pygame.transform.scale2x(pygame.image.load(os.path.join("slike", "bg.png")))
 TLA_SLIKA = pygame.transform.scale2x(pygame.image.load(os.path.join("slike", "base.png")))
+STAT_FONT = pygame.font.SysFont("comicsans", 50)
 
 class Ptic:
     SLIKE = PTIC_SLIKE
@@ -102,7 +104,7 @@ class Cev:
 
     def nastavi_visino(self):
         self.visina = random.randrange(50, 450)
-        self.vrh = self.visina - self.CEV_VRH.pridobi_visino()
+        self.vrh = self.visina - self.CEV_VRH.get_height()
         self.dno = self.visina + self.RAZMIK
 
     def premik(self):
@@ -129,15 +131,52 @@ class Cev:
         return False
 
 
-def narisi_okno(okno, ptic):
+class Tla:
+    HITROST = 5
+    SIRINA = TLA_SLIKA.get_width()
+    SLIKA = TLA_SLIKA
+
+    def __init__(self, y):
+        self.y = y
+        self.x1 = 0
+        self.x2 = self.SIRINA
+
+    def premik(self):
+        self.x1 -= self.HITROST
+        self.x2 -= self.HITROST
+
+        if self.x1 + self.SIRINA < 0:
+            self.x1 = self.x2 + self.SIRINA
+
+        if self.x2 + self.SIRINA < 0:
+            self.x2 = self.x1 + self.SIRINA
+
+    def narisi(self, okno):
+        okno.blit(self.SLIKA, (self.x1, self.y))
+        okno.blit(self.SLIKA, (self.x2, self.y))
+
+
+def narisi_okno(okno, ptic, cevi, tla, score):
     okno.blit(OZADJE_SLIKA, (0, 0))
+    for cev in cevi:
+        cev.narisi(okno)
+
+    text = STAT_FONT.render("Score: " + str(score), 1, (255,255,255))
+    okno.blit(text, (SIRINA - 10 - text.get_width(), 10))
+
+    tla.narisi(okno)
+
     ptic.narisi(okno)
     pygame.display.update()
 
 def main():
-        ptic = Ptic(200, 200)
+        ptic = Ptic(230, 350)
+        tla = Tla(730)
+        cevi = [Cev(700)]
         okno = pygame.display.set_mode((SIRINA, VISINA))
         clock = pygame.time.Clock()
+
+        score = 0
 
         run = True
         while run:
@@ -147,7 +186,33 @@ def main():
                     run = False
 
             #ptic.premik()
-            narisi_okno(okno, ptic)
+            dodaj_cev = False
+            odstrani = []
+            for cev in cevi:
+                if cev.trci(ptic):
+                    pass
+
+                if cev.x + cev.CEV_VRH.get_width() < 0:
+                    odstrani.append(cev)
+
+                if not cev.mimo and cev.x < ptic.x:
+                    cev.mimo = True
+                    dodaj_cev = True
+
+                cev.premik()
+
+            if dodaj_cev:
+                score += 1
+                cevi.append(Cev(600))
+
+            for cev in odstrani:
+                cevi.remove(cev)
+
+            if ptic.y + ptic.slika.get_height() >= 730:
+                pass
+
+            tla.premik()
+            narisi_okno(okno, ptic, cevi, tla, score)
         
         pygame.quit()
 
