@@ -8,6 +8,8 @@ pygame.font.init()
 SIRINA = 500    # naše igralno okno
 VISINA = 800
 
+GEN = 0    # generacija ptičev
+
 PTIC_SLIKE = [pygame.transform.scale2x(pygame.image.load(os.path.join("slike", "bird1.png"))),
                 pygame.transform.scale2x(pygame.image.load(os.path.join("slike", "bird2.png"))),
                 pygame.transform.scale2x(pygame.image.load(os.path.join("slike", "bird3.png")))]
@@ -92,7 +94,7 @@ class Cev:
     def __init__(self, x):
         self.x = x
         self.visina = 0
-        self.RAZMIK = 100
+        self.RAZMIK = 200
 
         self.vrh = 0
         self.dno = 0
@@ -156,7 +158,7 @@ class Tla:
         okno.blit(self.SLIKA, (self.x2, self.y))
 
 
-def narisi_okno(okno, ptic, cevi, tla, score):
+def narisi_okno(okno, ptici, cevi, tla, score, gen):
     okno.blit(OZADJE_SLIKA, (0, 0))
     for cev in cevi:
         cev.narisi(okno)
@@ -164,62 +166,98 @@ def narisi_okno(okno, ptic, cevi, tla, score):
     text = STAT_FONT.render("Score: " + str(score), 1, (255,255,255))
     okno.blit(text, (SIRINA - 10 - text.get_width(), 10))
 
+    text = STAT_FONT.render("Gen: " + str(gen), 1, (255,255,255))
+    okno.blit(text, (10, 10))
+
     tla.narisi(okno)
 
-    ptic.narisi(okno)
+    for ptic in ptici:
+        ptic.narisi(okno)
+
     pygame.display.update()
 
 def main(genomes, config):
-        ptici = []
-        tla = Tla(730)
-        cevi = [Cev(700)]
-        okno = pygame.display.set_mode((SIRINA, VISINA))
-        clock = pygame.time.Clock()
+    global GEN
+    GEN += 1
 
-        score = 0
+    nets = []    # to so neural networki
+    ge = []    # to so genomi
+    ptici = []
 
-        run = True
-        while run:
-            clock.tick(30)
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    run = False
+    for _, g in genomes:
+        net = neat.nn.FeedForwardNetwork.create(g, config)
+        nets.append(net)
+        ptici.append(Ptic(230, 350))
+        g.fitness = 0
+        ge.append(g)
 
-            #ptic.premik()
-            dodaj_cev = False
-            odstrani = []
-            for cev in cevi:
-                for ptic in ptici:
-                    if cev.trci(ptic):
-                        pass
+    tla = Tla(730)
+    cevi = [Cev(700)]
+    okno = pygame.display.set_mode((SIRINA, VISINA))
+    clock = pygame.time.Clock()
 
-                    if not cev.mimo and cev.x < ptic.x:
-                        cev.mimo = True
-                        dodaj_cev = True
+    score = 0
 
-                if cev.x + cev.CEV_VRH.get_width() < 0:
-                    odstrani.append(cev)
+    run = True
+    while run:
+        clock.tick(30)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+                pygame.quit()
+                quit()
 
-                cev.premik()
+        # za zamenjavo cevi, na katero se fokusiramo, ko gre ptič mimo nje
+        cev_ind = 0
+        if len(ptici) > 0:
+            if len(cevi) > 1 and ptici[0].x > cevi[0].x + cevi[0].CEV_VRH.get_width():
+                cev_ind = 1
+        else:
+            run = False
+            break
 
-            if dodaj_cev:
-                score += 1
-                cevi.append(Cev(600))
+        for x, ptic in enumerate(ptici):
+            ptic.premik()
+            ge[x].fitness += 0.1    # bravo ptič, ker si preživel ta frame
+            output = nets[x].activate((ptic.y, abs(ptic.y - cevi[cev_ind].visina), abs(ptic.y - cevi[cev_ind].dno)))
+            if output[0] > 0.5:
+                ptic.skok()
 
-            for cev in odstrani:
-                cevi.remove(cev)
+        dodaj_cev = False
+        odstrani = []
+        for cev in cevi:
+            for x, ptic in enumerate(ptici):
+                if cev.trci(ptic):
+                    ge[x].fitness -= 1    # dodatno povemo, da so ptiči, ki se zaletijo, slabi
+                    ptici.pop(x)
+                    nets.pop(x)
+                    ge.pop(x)
+                if not cev.mimo and cev.x < ptic.x:
+                    cev.mimo = True
+                    dodaj_cev = True
 
-            if ptic.y + ptic.slika.get_height() >= 730:
-                pass
+            if cev.x + cev.CEV_VRH.get_width() < 0:
+                odstrani.append(cev)
+            cev.premik()
 
-            tla.premik()
-            narisi_okno(okno, ptic, cevi, tla, score)
-        
-        pygame.quit()
-        quit
+        if dodaj_cev:
+            score += 1
+            for g in ge:
+                g.fitness += 5    # ptiči, ki pridejo mimo so dobri
+            cevi.append(Cev(600))
 
-main()
+        for cev in odstrani:
+            cevi.remove(cev)
 
+        for x, ptic in enumerate(ptici):
+            if ptic.y + ptic.slika.get_height() >= 730 or ptic.y < 0:
+                ptici.pop(x)
+                nets.pop(x)
+                ge.pop(x)
+
+        tla.premik()
+        narisi_okno(okno, ptici, cevi, tla, score, GEN)
+    
 def run(config_path):
     # nastravimo lastnosti iz config datoteke
     config = neat.config.Config(neat.DefaultGenome, 
@@ -232,7 +270,7 @@ def run(config_path):
 
     # da bomo v konzoli videli nekaj statistike
     pop.add_reporter(neat.StdOutReporter(True))
-    stats = StatisticsReporter()
+    stats = neat.StatisticsReporter()
     pop.add_reporter(stats)
 
     winner = pop.run(main, 50)
