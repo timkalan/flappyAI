@@ -169,8 +169,8 @@ def narisi_okno(okno, ptic, cevi, tla, score):
     ptic.narisi(okno)
     pygame.display.update()
 
-def main():
-        ptic = Ptic(230, 350)
+def main(genomes, config):
+        ptici = []
         tla = Tla(730)
         cevi = [Cev(700)]
         okno = pygame.display.set_mode((SIRINA, VISINA))
@@ -189,15 +189,16 @@ def main():
             dodaj_cev = False
             odstrani = []
             for cev in cevi:
-                if cev.trci(ptic):
-                    pass
+                for ptic in ptici:
+                    if cev.trci(ptic):
+                        pass
+
+                    if not cev.mimo and cev.x < ptic.x:
+                        cev.mimo = True
+                        dodaj_cev = True
 
                 if cev.x + cev.CEV_VRH.get_width() < 0:
                     odstrani.append(cev)
-
-                if not cev.mimo and cev.x < ptic.x:
-                    cev.mimo = True
-                    dodaj_cev = True
 
                 cev.premik()
 
@@ -215,5 +216,28 @@ def main():
             narisi_okno(okno, ptic, cevi, tla, score)
         
         pygame.quit()
+        quit
 
 main()
+
+def run(config_path):
+    # nastravimo lastnosti iz config datoteke
+    config = neat.config.Config(neat.DefaultGenome, 
+                                neat.DefaultReproduction,
+                                neat.DefaultSpeciesSet,
+                                neat.DefaultStagnation,
+                                config_path)
+
+    pop = neat.Population(config)
+
+    # da bomo v konzoli videli nekaj statistike
+    pop.add_reporter(neat.StdOutReporter(True))
+    stats = StatisticsReporter()
+    pop.add_reporter(stats)
+
+    winner = pop.run(main, 50)
+
+if __name__ == "__main__":
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, "config_feedforward.txt")
+    run(config_path)
